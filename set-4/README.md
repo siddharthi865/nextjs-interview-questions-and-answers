@@ -25,6 +25,321 @@
 
 ## Question 1. How can you optimize web performance in Next.js?
 
+**Q: How can you optimize web performance in Next.js?**
+
+**Short Answer (30 seconds):**
+Next.js performance optimization revolves around reducing JavaScript shipped to the client, leveraging Server Components by default, using intelligent caching (fetch + ISR), optimizing assets (images/fonts), and enabling streaming + edge rendering. The framework is designed to make “fast by default,” but real production performance comes from architectural decisions.
+
+---
+
+**Detailed Explanation:**
+
+### 1. Core concept: Reduce Client-Side JavaScript (App Router + RSC)
+
+Next.js 16 App Router heavily emphasizes **React Server Components (RSC)**.
+
+- Server Components run on the server → zero client JS
+- Only interactive parts become Client Components
+- Docs: [https://nextjs.org/docs/app/building-your-application/rendering/server-components](https://nextjs.org/docs/app/building-your-application/rendering/server-components)
+
+This reduces:
+
+- hydration cost
+- bundle size
+- Time to Interactive (TTI)
+
+---
+
+### 2. Data fetching + caching strategy (critical for performance)
+
+Next.js extends `fetch` with caching, revalidation, and ISR-like behavior.
+
+- `force-cache` (default in RSC)
+- `no-store` (dynamic, real-time)
+- `revalidate` (ISR-like behavior)
+
+**Example (cached + revalidated fetch):**
+
+```tsx
+// app/products/page.tsx (Server Component)
+
+export default async function ProductsPage() {
+  const res = await fetch("https://api.example.com/products", {
+    next: { revalidate: 60 }, // ISR every 60 seconds
+  });
+
+  const products = await res.json();
+
+  return (
+    <div>
+      {products.map((p: any) => (
+        <div key={p.id}>{p.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+**Why it matters:**
+
+- avoids repeated API calls
+- enables edge caching
+- improves TTFB significantly
+
+Docs: [https://nextjs.org/docs/app/building-your-application/data-fetching/fetching](https://nextjs.org/docs/app/building-your-application/data-fetching/fetching)
+
+---
+
+### 3. Image & asset optimization (often biggest win)
+
+Use `next/image` for:
+
+- automatic resizing
+- lazy loading
+- modern formats (WebP/AVIF)
+- responsive delivery
+
+```tsx
+import Image from "next/image";
+
+export default function Hero() {
+  return (
+    <Image src="/hero.jpg" alt="Hero" width={1200} height={600} priority />
+  );
+}
+```
+
+**Performance impact:**
+
+- reduces CLS (layout shift)
+- improves LCP (Largest Contentful Paint)
+- avoids shipping oversized images
+
+Docs: [https://nextjs.org/docs/app/building-your-application/optimizing/images](https://nextjs.org/docs/app/building-your-application/optimizing/images)
+
+---
+
+### 4. Code splitting + dynamic imports
+
+Next.js automatically splits routes, but you should also split heavy components.
+
+```tsx
+import dynamic from "next/dynamic";
+
+const HeavyChart = dynamic(() => import("./HeavyChart"), {
+  ssr: false,
+  loading: () => <p>Loading chart...</p>,
+});
+
+export default function Dashboard() {
+  return <HeavyChart />;
+}
+```
+
+**Use case:**
+
+- charts
+- editors (Monaco)
+- maps
+- analytics dashboards
+
+---
+
+### 5. Fonts optimization (reduce layout shift + requests)
+
+Use `next/font` to self-host fonts automatically.
+
+```tsx
+import { Inter } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+});
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html className={inter.className}>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+Benefits:
+
+- no external font blocking
+- reduced CLS
+- better performance scoring
+
+Docs: [https://nextjs.org/docs/app/building-your-application/optimizing/fonts](https://nextjs.org/docs/app/building-your-application/optimizing/fonts)
+
+---
+
+### 6. Streaming + Suspense (faster perceived performance)
+
+Next.js supports **React Streaming SSR**.
+
+```tsx
+import { Suspense } from "react";
+import Reviews from "./Reviews";
+
+export default function ProductPage() {
+  return (
+    <div>
+      <h1>Product</h1>
+
+      <Suspense fallback={<p>Loading reviews...</p>}>
+        <Reviews />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+**Why it matters:**
+
+- HTML is streamed progressively
+- critical content loads first
+- improves TTFB perception
+
+---
+
+### 7. Edge runtime & Middleware optimization
+
+Use Edge Runtime for low-latency logic (auth, redirects, personalization).
+
+```tsx
+export const runtime = "edge";
+
+export function middleware(req: Request) {
+  const url = new URL(req.url);
+
+  if (!req.headers.get("cookie")) {
+    return Response.redirect(new URL("/login", url));
+  }
+
+  return Response.next();
+}
+```
+
+Use cases:
+
+- A/B testing
+- geo personalization
+- auth gating
+
+Docs: [https://nextjs.org/docs/app/building-your-application/routing/middleware](https://nextjs.org/docs/app/building-your-application/routing/middleware)
+
+---
+
+### 8. Avoid unnecessary Client Components
+
+A common performance mistake is overusing `"use client"`.
+
+Bad:
+
+```tsx
+"use client"; // entire tree becomes client-side
+```
+
+Better:
+
+- isolate interactivity
+- keep layout/pages server-side
+- pass props down
+
+---
+
+**Performance considerations (real-world):**
+
+- Measure with Lighthouse + Web Vitals (LCP, INP, CLS)
+- Watch hydration cost (bundle analyzer)
+- Prefer server rendering over CSR
+- Cache aggressively at edge when possible
+- Avoid large client bundles in dashboards
+
+---
+
+**Common pitfalls & solutions:**
+
+1. ❌ Overusing Client Components
+   → Keep default Server Components
+
+2. ❌ No caching strategy in fetch
+   → Always define `revalidate` or `no-store` explicitly
+
+3. ❌ Large images without optimization
+   → Always use `next/image`
+
+4. ❌ Blocking waterfalls in data fetching
+   → Parallelize fetch calls:
+
+```tsx
+const [a, b] = await Promise.all([fetch("/api/a"), fetch("/api/b")]);
+```
+
+5. ❌ Hydrating entire pages unnecessarily
+   → Use partial client boundaries
+
+---
+
+**Code (Production-ready optimization pattern):**
+
+```tsx
+// app/dashboard/page.tsx
+
+import { Suspense } from "react";
+import dynamic from "next/dynamic";
+
+const Chart = dynamic(() => import("./Chart"), {
+  ssr: false,
+});
+
+async function getStats() {
+  const res = await fetch("https://api.example.com/stats", {
+    next: { revalidate: 30 },
+  });
+  return res.json();
+}
+
+export default async function DashboardPage() {
+  const stats = await getStats();
+
+  return (
+    <div>
+      <h1>Dashboard</h1>
+
+      <Suspense fallback={<p>Loading chart...</p>}>
+        <Chart data={stats} />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+---
+
+**When to use:**
+
+- High-traffic production apps (SaaS, e-commerce, dashboards)
+- SEO-critical pages (marketing, blogs)
+- Global applications requiring edge delivery
+- Performance-sensitive user experiences
+
+---
+
+**Alternatives:**
+
+- CSR (React SPA) → simpler but worse SEO/TTFB
+- Remix → strong caching model but different ecosystem
+- Traditional SSR (Express + React) → more control but less optimization built-in
+- Static-only (SSG) → fastest but not dynamic
+
 ## Question 2. How do you handle analytics in Next.js?
 
 ## Question 3. How do you integrate Redux or Zustand in Next.js?
