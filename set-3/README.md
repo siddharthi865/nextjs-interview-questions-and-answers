@@ -25,6 +25,160 @@
 
 ## Question 1. How do you do a 404 page in Next.js?
 
+**Q: How do you do a 404 page in Next.js?**
+
+**Short Answer (30 seconds):**
+In Next.js 16 (App Router), you create a custom 404 page by defining a `not-found.tsx` file inside the `app/` directory or a route segment. Next.js automatically renders it when a route is not found or when you explicitly call `notFound()` from `next/navigation`.
+
+---
+
+**Detailed Explanation:**
+
+### 1. Core concept (App Router-based 404 handling)
+
+In Next.js App Router, 404 handling is **file-system based and declarative**.
+
+📚 Docs: [https://nextjs.org/docs/app/api-reference/file-conventions/not-found](https://nextjs.org/docs/app/api-reference/file-conventions/not-found)
+📚 Routing: [https://nextjs.org/docs/app/building-your-application/routing](https://nextjs.org/docs/app/building-your-application/routing)
+
+There are **two ways** a 404 is triggered:
+
+- Automatic: When no route matches
+- Manual: When you call `notFound()` inside a Server Component or Route Handler
+
+---
+
+### 2. Implementation approach
+
+#### Global 404 page
+
+Create this file:
+
+```
+app/not-found.tsx
+```
+
+This becomes the **global fallback 404 page**.
+
+#### Route-level 404 (optional)
+
+You can also define:
+
+```
+app/blog/not-found.tsx
+```
+
+This overrides 404 UI only for `/blog/*` routes.
+
+---
+
+### 3. Code example (Production-ready App Router)
+
+#### Global 404 page
+
+```tsx
+// app/not-found.tsx
+
+import Link from "next/link";
+
+export default function NotFound() {
+  return (
+    <div style={{ padding: "2rem", textAlign: "center" }}>
+      <h1>404 - Page Not Found</h1>
+      <p>The page you’re looking for doesn’t exist or has been moved.</p>
+
+      <Link
+        href="/"
+        style={{ color: "blue", marginTop: "1rem", display: "inline-block" }}
+      >
+        Go back home
+      </Link>
+    </div>
+  );
+}
+```
+
+---
+
+#### Programmatic 404 inside a page
+
+```tsx
+// app/products/[id]/page.tsx
+
+import { notFound } from "next/navigation";
+
+async function getProduct(id: string) {
+  const res = await fetch(`https://api.example.com/products/${id}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export default async function ProductPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const product = await getProduct(params.id);
+
+  if (!product) {
+    notFound(); // triggers nearest not-found.tsx
+  }
+
+  return <div>{product.name}</div>;
+}
+```
+
+---
+
+### 4. Performance considerations
+
+- `not-found.tsx` is a **Server Component by default**, keeping bundle size minimal
+- Avoid heavy client-side logic in 404 pages
+- Keep 404 UI lightweight for fast rendering
+- Use shared layouts carefully—404 bypasses normal page rendering flow
+
+---
+
+### 5. Common pitfalls & solutions
+
+**Pitfall 1: Using `pages/404.tsx` in App Router**
+
+- ❌ Works only in Pages Router
+- ✅ Use `app/not-found.tsx` instead
+
+---
+
+**Pitfall 2: Forgetting `notFound()` in dynamic routes**
+
+- If data is missing but you still return a page, users see blank/incorrect UI
+- Always explicitly call `notFound()` for missing resources
+
+---
+
+**Pitfall 3: Overly complex 404 pages**
+
+- 404 pages should not fetch data or depend on external APIs heavily
+- Keep them static and resilient
+
+---
+
+**When to use:**
+
+- Missing routes (automatic fallback)
+- Invalid dynamic route params
+- Missing DB/API entities in dynamic pages
+
+---
+
+**Alternatives:**
+
+- **Pages Router:** `pages/404.tsx`
+- **Middleware-based redirects:** For redirecting instead of showing 404
+- **Custom error pages:** `error.tsx` for runtime errors (not 404s)
+
 ## Question 2. What is a custom error page in Next.js?
 
 ## Question 3. How do you handle API routes for CRUD operations?
